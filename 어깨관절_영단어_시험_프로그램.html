@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>어깨 관절 영단어 시험</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f5f6f8;color:#222;font-family:Arial,"Noto Sans KR",sans-serif}
+.wrap{width:min(920px,94vw);margin:28px auto}
+.card{background:#fff;border:1px solid #ddd;border-radius:14px;padding:26px;box-shadow:0 4px 16px rgba(0,0,0,.05)}
+h1{text-align:center;font-size:25px;margin:0 0 22px}
+.settings{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.setting{border:1px solid #ddd;border-radius:10px;padding:14px}
+.setting-title{font-weight:700;margin-bottom:8px}
+label{display:block;margin:7px 0;cursor:pointer}
+.question-area{border-top:1px solid #e4e4e4;padding-top:22px}
+.progress{text-align:center;color:#777;font-size:14px;margin-bottom:7px}
+.direction{text-align:center;color:#777;font-size:14px;margin-bottom:10px}
+.question{width:100%;min-height:135px;padding:22px 18px;border:1px solid #d8d8d8;border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(24px,4.5vw,40px);font-weight:700;line-height:1.35;overflow-wrap:anywhere;word-break:normal;white-space:normal;margin-bottom:16px}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{border:1px solid #ccc;background:#fff;border-radius:9px;padding:13px 15px;font-size:16px;cursor:pointer;overflow-wrap:anywhere;white-space:normal;line-height:1.35}
+button:hover{background:#f3f3f3}
+.choice.correct{background:#eaf7ed;border-color:#5ba86f}
+.choice.wrong{background:#fff0f0;border-color:#d56b6b}
+.answer-area{display:none;gap:9px}
+.answer-area input{flex:1;min-width:0;padding:13px;border:1px solid #ccc;border-radius:9px;font-size:16px}
+.primary{background:#222;color:#fff;border-color:#222}
+.primary:hover{background:#111}
+.result{min-height:24px;text-align:center;font-weight:700;margin-top:13px;overflow-wrap:anywhere}
+.controls{display:flex;gap:10px;margin-top:17px}
+.controls button{flex:1}
+@media(max-width:650px){.settings,.choices{grid-template-columns:1fr}.card{padding:18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>영단어 시험</h1>
+
+<div class="settings">
+<div class="setting">
+<div class="setting-title">문제 방향</div>
+<label><input type="radio" name="direction" value="en-ko" checked> 영어 → 한국어</label>
+<label><input type="radio" name="direction" value="ko-en"> 한국어 → 영어</label>
+</div>
+<div class="setting">
+<div class="setting-title">문제 유형</div>
+<label><input type="radio" name="mode" value="mc" checked> 객관식</label>
+<label><input type="radio" name="mode" value="short"> 주관식</label>
+<label><input type="radio" name="mode" value="mixed"> 혼합</label>
+</div>
+</div>
+
+<div class="question-area">
+<div class="progress" id="progress"></div>
+<div class="direction" id="directionText"></div>
+<div class="question" id="question"></div>
+<div class="choices" id="choices"></div>
+<div class="answer-area" id="answerArea">
+<input id="answerInput" type="text" placeholder="정답을 입력하세요">
+<button class="primary" id="submitBtn">확인</button>
+</div>
+<div class="result" id="result"></div>
+<div class="controls">
+<button id="nextBtn" class="primary" style="display:none">다음 문제</button>
+<button id="restartBtn">처음부터 다시</button>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+/*
+현재 업로드된 이미지에서 확인되는 고유 항목만 사용했습니다.
+반복된 shoulder joint, adduction, flexion, Coracobrachialis,
+coracoid process, Clavicle, medial humerus 등은 한 번만 출제됩니다.
+*/
+const words = [
+["shoulder joint","견관절"],
+["adduction","내전"],
+["teres major","대원근"],
+["inferior angle of scapula","견갑골 하각"],
+["medial lip of intertubercular groove","결절간구 안쪽입술"],
+["Coracobrachialis","오훼상완근"],
+["coracoid process","오훼돌기"],
+["medial humerus","상완골 몸통 안쪽면"],
+["flexion","굴곡"],
+["anterior deltoid","전면 삼각근"],
+["Clavicle","쇄골"],
+["deltoid tuberosity","삼각근조면"],
+["pectoralis major clavicular head","대흉근 쇄골부"],
+["lateral lip of intertubercular groove","결절간구 가쪽입술"],
+["biceps brachii","상완이두근"],
+["supraglenoid tubercle","관절와상결절"],
+["radial tuberosity","요골조면"]
+];
+
+let order=[], current=0, score=0, answered=false;
+
+const $=id=>document.getElementById(id);
+function shuffle(a){return [...a].sort(()=>Math.random()-0.5)}
+function normalize(s){return s.trim().toLowerCase().replace(/\s+/g," ")}
+
+function direction(){return document.querySelector('input[name="direction"]:checked').value}
+function mode(){return document.querySelector('input[name="mode"]:checked').value}
+
+function start(){
+ order=shuffle([...Array(words.length).keys()]);
+ current=0; score=0; load();
+}
+function load(){
+ answered=false;
+ $("result").textContent="";
+ $("nextBtn").style.display="none";
+ $("answerInput").value="";
+ const d=direction();
+ let m=mode();
+ if(m==="mixed") m=Math.random()<.5?"mc":"short";
+ const idx=order[current];
+ $("progress").textContent=`${current+1} / ${words.length}`;
+ $("directionText").textContent=d==="en-ko"?"영어 → 한국어":"한국어 → 영어";
+ $("question").textContent=d==="en-ko"?words[idx][0]:words[idx][1];
+
+ if(m==="mc"){
+   $("choices").style.display="grid";
+   $("answerArea").style.display="none";
+   makeChoices(idx,d);
+ }else{
+   $("choices").style.display="none";
+   $("answerArea").style.display="flex";
+   $("answerInput").focus();
+ }
+}
+function makeChoices(correctIdx,d){
+ const correct=d==="en-ko"?words[correctIdx][1]:words[correctIdx][0];
+ const wrong=shuffle(words.map((_,i)=>i).filter(i=>i!==correctIdx)).slice(0,3);
+ const opts=shuffle([correctIdx,...wrong]);
+ $("choices").innerHTML="";
+ opts.forEach(i=>{
+   const b=document.createElement("button");
+   b.className="choice";
+   b.textContent=d==="en-ko"?words[i][1]:words[i][0];
+   b.onclick=()=>checkChoice(b,b.textContent,correct);
+   $("choices").appendChild(b);
+ });
+}
+function checkChoice(btn,selected,correct){
+ if(answered)return;
+ answered=true;
+ if(normalize(selected)===normalize(correct)){
+   score++; btn.classList.add("correct"); $("result").textContent="정답입니다! ✓";
+ }else{
+   btn.classList.add("wrong");
+   $("result").textContent=`오답! 정답: ${correct}`;
+   [...$("choices").children].forEach(b=>{
+     if(normalize(b.textContent)===normalize(correct)) b.classList.add("correct");
+   });
+ }
+ $("nextBtn").style.display="block";
+}
+function submitShort(){
+ if(answered)return;
+ const d=direction(), idx=order[current];
+ const correct=d==="en-ko"?words[idx][1]:words[idx][0];
+ const user=$("answerInput").value;
+ if(!user.trim())return;
+ answered=true;
+ if(normalize(user)===normalize(correct)){
+   score++; $("result").textContent="정답입니다! ✓";
+ }else{
+   $("result").textContent=`오답! 정답: ${correct}`;
+ }
+ $("nextBtn").style.display="block";
+}
+
+$("submitBtn").onclick=submitShort;
+$("answerInput").addEventListener("keydown",e=>{if(e.key==="Enter")submitShort()});
+$("nextBtn").onclick=()=>{
+ if(current<words.length-1){current++;load()}
+ else{
+   $("question").textContent="시험 완료!";
+   $("choices").style.display="none";
+   $("answerArea").style.display="none";
+   $("directionText").textContent="";
+   $("progress").textContent=`점수: ${score} / ${words.length}`;
+   $("result").textContent="처음부터 다시 버튼으로 새 시험을 시작할 수 있습니다.";
+   $("nextBtn").style.display="none";
+ }
+};
+$("restartBtn").onclick=start;
+document.querySelectorAll('input[name="direction"],input[name="mode"]').forEach(x=>x.onchange=start);
+start();
+</script>
+</body>
+</html>
